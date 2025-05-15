@@ -6,6 +6,7 @@
     <title>DSE數學 AI擬題</title>
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
         body {
             font-family: 'Noto Serif TC', 'cwTeXHei', 'cwTeXFangSong', 'cwTeXKai', 'cwTeXMing', 'PingFang TC', 'Microsoft JhengHei', serif;
@@ -158,6 +159,21 @@
         .clearReferenceBtn:hover {
             background-color: #c82333;
         }
+
+        #copyBtn {
+            margin-top: 10px;
+            background-color: #5d6d7e;
+            padding: 8px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #copyBtn:hover {
+            background-color: #4a5a6b;
+        }
     </style>
 </head>
 <body>
@@ -168,7 +184,7 @@
             <div id="referenceQuestionsList">
                 <div class="referenceQuestion">
                     <span class="sequence">1.</span>
-                    <textarea class="refQuestion" placeholder="在此輸入參考題目"></textarea>
+                    <textarea class="refQuestion" placeholder="在此輸入參考題目（支持LaTeX數學符號，例如 \\[ x^2 + 3 \\]）"></textarea>
                 </div>
             </div>
             <div class="controlButtons">
@@ -180,6 +196,9 @@
         <button id="generateBtn">生成</button>
         <div id="loading">AI正在思考，請稍候...</div>
         <div id="output"></div>
+        <button id="copyBtn" style="display: none;" title="複製到剪貼板">
+            <i class="fas fa-copy"></i>
+        </button>
     </div>
 
     <script type="text/javascript">
@@ -235,7 +254,7 @@
             const currentCount = list.querySelectorAll('.referenceQuestion').length;
             const newQuestion = document.createElement('div');
             newQuestion.className = 'referenceQuestion';
-            newQuestion.innerHTML = `<span class="sequence">${currentCount + 1}.</span><textarea class="refQuestion" placeholder="在此輸入參考題目"></textarea>`;
+            newQuestion.innerHTML = `<span class="sequence">${currentCount + 1}.</span><textarea class="refQuestion" placeholder="在此輸入參考題目（支持LaTeX數學符號，例如 \\[ x^2 + 3 \\]）"></textarea>`;
             list.appendChild(newQuestion);
             updateControlButtons();
         }
@@ -281,6 +300,7 @@
             loadingDiv.style.display = 'block';
             generateBtn.disabled = true;
             outputDiv.innerHTML = '';
+            document.getElementById('copyBtn').style.display = 'none';
 
             const requestBody = {
                 model: MODEL,
@@ -332,7 +352,6 @@
         }
 
         function extractLatexContent(content) {
-            // 提取僅包含 LaTeX 格式的內容（以 \[ ... \] 包裹）
             const regex = /\\\[.*?\\\]/gs;
             const matches = content.match(regex);
             return matches ? matches.join('\n\n') : '\\[ \\text{Error: No valid LaTeX content found} \\]';
@@ -344,11 +363,22 @@
                 console.error('MathJax error:', err);
                 outputDiv.textContent = 'LaTeX轉換失敗，請檢查輸入或稍後再試';
             });
+            document.getElementById('copyBtn').style.display = 'block';
         }
+
+        document.getElementById('copyBtn').addEventListener('click', function() {
+            const latexContent = outputDiv.textContent;
+            navigator.clipboard.writeText(latexContent).then(() => {
+                alert('LaTeX內容已複製到剪貼板，可粘貼到Word並使用適當工具渲染');
+            }).catch(err => {
+                console.error('複製失敗：', err);
+                alert('複製失敗，請重試');
+            });
+        });
     </script>
 
     <footer class="copyright-footer">
-        <p>Copyright © 2025 陳大文. All rights reserved.</p>
+        <p>Copyright © 2025 陳冠健、Hugo Wong. All rights reserved.</p>
     </footer>
 </body>
 </html>
