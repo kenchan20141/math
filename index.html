@@ -1,43 +1,4 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
@@ -224,6 +185,17 @@
             margin-bottom: 15px;
             box-sizing: border-box;
         }
+
+        .math-question {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            overflow-x: auto;
+            white-space: nowrap;
+            max-width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -365,13 +337,13 @@
             let promptContent;
             switch (difficulty) {
                 case '容易':
-                    promptContent = `Below are the reference questions provided by the user:\n\n${refQuestions.map((q, index) => `Reference Question ${index + 1}: ${q}`).join('\n\n')}\n\nFor each reference question, generate a new question. The new question must: only change the numerical values; be based on the same mathematical concept. All questions and answers must be in LaTeX format, enclosed in \\[ ... \\], and the output must contain only LaTeX content with no non-LaTeX text. Respond in English.`;
+                    promptContent = `Below are the reference questions provided by the user:\n\n${refQuestions.map((q, index) => `Reference Question ${index + 1}: ${q}`).join('\n\n')}\n\nFor each reference question, generate a new question, its answer, and a guiding question. The new question must: only change the numerical values; be based on the same mathematical concept. The guiding question should be in English and help students understand the direction of the problem. Format each set as specified in the system instructions.`;
                     break;
                 case '普通':
-                    promptContent = `Below are the reference questions provided by the user:\n\n${refQuestions.map((q, index) => `Reference Question ${index + 1}: ${q}`).join('\n\n')}\n\nFor each reference question, generate a new question. The new question must: be based on the same mathematical concept; have content, context, and structure 100% different from the reference question, not just changing numbers, showing creativity by altering the question structure or application scenario. All questions and answers must be in LaTeX format, enclosed in \\[ ... \\], and the output must contain only LaTeX content with no non-LaTeX text. Respond in English.`;
+                    promptContent = `Below are the reference questions provided by the user:\n\n${refQuestions.map((q, index) => `Reference Question ${index + 1}: ${q}`).join('\n\n')}\n\nFor each reference question, generate a new question, its answer, and a guiding question. The new question must: be based on the same mathematical concept; have content, context, and structure 100% different from the reference question, not just changing numbers, showing creativity by altering the question structure or application scenario. The guiding question should be in English and help students understand the direction of the problem. Format each set as specified in the system instructions.`;
                     break;
                 case '困難':
-                    promptContent = `Below are the reference questions provided by the user:\n\n${refQuestions.map((q, index) => `Reference Question ${index + 1}: ${q}`).join('\n\n')}\n\nFor each reference question, generate a new question. The new question must: be based on the same mathematical concept; be completely different and more challenging, focusing on argumentation rather than calculation, requiring students to evaluate a claim (AGREE or DISAGREE) and provide reasoning. All questions and answers must be in LaTeX format, enclosed in \\[ ... \\], and the output must contain only LaTeX content with no non-LaTeX text. Respond in English.`;
+                    promptContent = `Below are the reference questions provided by the user:\n\n${refQuestions.map((q, index) => `Reference Question ${index + 1}: ${q}`).join('\n\n')}\n\nFor each reference question, generate a new question, its answer, and a guiding question. The new question must: be based on the same mathematical concept; be completely different and more challenging, focusing on argumentation rather than calculation, requiring students to evaluate a claim (AGREE or DISAGREE) and provide reasoning. The guiding question should be in English and help students understand the direction of the problem. Format each set as specified in the system instructions.`;
                     break;
             }
 
@@ -380,15 +352,25 @@
                 messages: [
                     { 
                         role: "system", 
-                        content: "You are a math question generator specializing in DSE curriculum questions. Users will provide one or more reference questions, and you must generate a new question for each. Requirements:\n" +
+                        content: "You are a math question generator specializing in DSE curriculum questions. Users will provide one or more reference questions, and you must generate a new question, its answer, and a guiding question for each. Requirements:\n" +
                                  "1. Identify the category of each reference question: algebra, geometry, or calculus.\n" +
                                  "2. Generate a new question for each reference question that:\n" +
                                  "   - Belongs to the same category.\n" +
                                  "   - Is based on the same mathematical concept.\n" +
-                                 "   - Adjusts the question type based on the difficulty level.\n" +
-                                 "3. All questions and answers must use LaTeX format, enclosed in \\[ ... \\].\n" +
-                                 "4. Output must contain only LaTeX-formatted questions and answers, with no non-LaTeX content (e.g., no explanations, steps, or plain text). Respond in English.\n" +
-                                 "5. Ensure the output strictly follows LaTeX format and converts successfully."
+                                 "   - Adjusts the question type based on the difficulty level specified by the user.\n" +
+                                 "3. For each new question, also provide:\n" +
+                                 "   - The correct answer.\n" +
+                                 "   - A guiding question in English that helps students understand the direction of the problem.\n" +
+                                 "4. Format each set (new question, answer, guiding question) as a single LaTeX block using \\begin{align*} with labels 'Question:', 'Answer:', and 'Guiding Question:', enclosed in \\[ ... \\]. For example:\n" +
+                                 "\\[\n" +
+                                 "\\begin{align*}\n" +
+                                 "\\text{Question:} & \\quad \\text{[Your question here]} \\\\\n" +
+                                 "\\text{Answer:} & \\quad \\text{[Your answer here]} \\\\\n" +
+                                 "\\text{Guiding Question:} & \\quad \\text{[Your guiding question here]}\n" +
+                                 "\\end{align*}\n" +
+                                 "\\]\n" +
+                                 "5. Ensure the output contains only LaTeX content with no non-LaTeX text outside the \\[ ... \\] blocks. All text, including the guiding question, should be within \\text{} commands inside the LaTeX blocks.\n" +
+                                 "6. Respond in English."
                     },
                     { 
                         role: "user", 
@@ -413,8 +395,8 @@
 
                 const data = await response.json();
                 const generatedContent = data.choices[0].message.content;
-                const latexContent = extractLatexContent(generatedContent);
-                displayMathQuestions(latexContent);
+                const latexBlocks = extractLatexContent(generatedContent);
+                displayMathQuestions(latexBlocks);
             } catch (error) {
                 console.error('Error:', error);
                 outputDiv.textContent = '生成題目時出錯，請稍後再試';
@@ -427,11 +409,17 @@
         function extractLatexContent(content) {
             const regex = /\\\[.*?\\\]/gs;
             const matches = content.match(regex);
-            return matches ? matches.join('\n\n') : '\\[ \\text{Error: No valid LaTeX content found} \\]';
+            return matches ? matches : ['\\[ \\text{Error: No valid LaTeX content found} \\]'];
         }
 
-        function displayMathQuestions(content) {
-            outputDiv.innerHTML = content;
+        function displayMathQuestions(latexBlocks) {
+            outputDiv.innerHTML = '';
+            latexBlocks.forEach(block => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'math-question';
+                questionDiv.textContent = block;
+                outputDiv.appendChild(questionDiv);
+            });
             MathJax.typesetPromise([outputDiv]).catch(err => {
                 console.error('MathJax error:', err);
                 outputDiv.textContent = 'LaTeX轉換失敗，請檢查輸入或稍後再試';
