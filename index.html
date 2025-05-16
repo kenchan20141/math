@@ -1,4 +1,46 @@
-<!DOCTYPE html>
+
+
+
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
@@ -12,7 +54,7 @@
             font-family: 'Noto Serif TC', 'cwTeXHei', 'cwTeXFangSong', 'cwTeXKai', 'cwTeXMing', 'PingFang TC', 'Microsoft JhengHei', serif;
             background-image: url('https://i.ibb.co/bhcZ1Nw/image.png');
             background-repeat: no-repeat;
-background-size: cover;
+            background-size: cover;
             margin: 0;
             padding: 20px;
             display: flex;
@@ -20,7 +62,7 @@ background-size: cover;
             align-items: center;
             min-height: 100vh;
         }
-
+        
         .copyright-footer {
             position: fixed;
             bottom: 0;
@@ -28,18 +70,18 @@ background-size: cover;
             padding: 5px 10px;
             background-color: #f1f1f1;
         }
-
+        
         .copyright-footer p {
             margin: 0;
             font-size: 14px;
         }
-
+        
         @media (max-width: 600px) {
             .copyright-footer p {
                 font-size: 12px;
             }
         }
-
+        
         .container {
             background: white;
             padding: 20px;
@@ -49,13 +91,13 @@ background-size: cover;
             opacity: 0.9;
             box-sizing: border-box;
         }
-
+        
         h1 {
             text-align: center;
             color: #333;
             margin-bottom: 20px;
         }
-
+        
         textarea {
             width: 100%;
             height: 150px;
@@ -67,7 +109,7 @@ background-size: cover;
             margin-bottom: 15px;
             box-sizing: border-box;
         }
-
+        
         button {
             padding: 10px 20px;
             font-size: 16px;
@@ -80,16 +122,16 @@ background-size: cover;
             display: block;
             margin: 0 auto;
         }
-
+        
         button:hover {
             background-color: #45a049;
         }
-
+        
         button:disabled {
             background-color: #cccccc;
             cursor: not-allowed;
         }
-
+        
         #loading {
             font-size: 18px;
             color: #333;
@@ -97,7 +139,7 @@ background-size: cover;
             display: none;
             text-align: center;
         }
-
+        
         #output {
             margin-top: 15px;
             padding: 5px;
@@ -109,29 +151,29 @@ background-size: cover;
             max-height: 300px;
             overflow-y: auto;
         }
-
+        
         .inputGroup {
             margin-bottom: 20px;
         }
-
+        
         .referenceQuestion {
             display: flex;
             align-items: center;
             margin-bottom: 10px;
         }
-
+        
         .sequence {
             margin-right: 10px;
             font-weight: bold;
         }
-
+        
         .controlButtons {
             text-align: center;
             justify-content: center;
             gap: 5px;
             margin-top: 10px;
         }
-
+        
         .addReferenceBtn, .removeReferenceBtn, .clearReferenceBtn {
             display: inline-block;
             background-color: #5d6d7e;
@@ -148,19 +190,19 @@ background-size: cover;
             transition: background-color 0.3s;
             margin: 0 5px;
         }
-
+        
         .addReferenceBtn:hover, .removeReferenceBtn:hover {
             background-color: #4a5a6b;
         }
-
+        
         .clearReferenceBtn {
             background-color: #dc3545;
         }
-
+        
         .clearReferenceBtn:hover {
             background-color: #c82333;
         }
-
+        
         #copyBtn {
             margin-top: 10px;
             background-color: #5d6d7e;
@@ -171,8 +213,45 @@ background-size: cover;
             align-items: center;
             justify-content: center;
         }
-
+        
         #copyBtn:hover {
+            background-color: #4a5a6b;
+        }
+        
+        .difficultySelect {
+            width: 100px;
+            padding: 5px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-left: 10px;
+        }
+        
+        .math-question {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            overflow-x: auto;
+            white-space: nowrap;
+            max-width: 100%;
+            position: relative;
+        }
+        
+        .copySingleBtn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: #5d6d7e;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            padding: 5px;
+        }
+        
+        .copySingleBtn:hover {
             background-color: #4a5a6b;
         }
     </style>
@@ -186,6 +265,11 @@ background-size: cover;
                 <div class="referenceQuestion">
                     <span class="sequence">1.</span>
                     <textarea class="refQuestion" placeholder="在此輸入參考題目（支持LaTeX數學符號，例如 \\[ x^2 + 3 \\]）"></textarea>
+                    <select class="difficultySelect">
+                        <option value="容易">容易</option>
+                        <option value="普通" selected>普通</option>
+                        <option value="困難">困難</option>
+                    </select>
                 </div>
             </div>
             <div class="controlButtons">
@@ -197,42 +281,42 @@ background-size: cover;
         <button id="generateBtn">生成</button>
         <div id="loading">AI正在思考，請稍候...</div>
         <div id="output"></div>
-        <button id="copyBtn" style="display: none;" title="複製到剪貼板">
+        <button id="copyBtn" style="display: none;" title="複製所有題目">
             <i class="fas fa-copy"></i>
         </button>
     </div>
-
+    
     <script type="text/javascript">
         var gk_isXlsx = false;
         var gk_xlsxFileLookup = {};
         var gk_fileData = {};
-
+        
         function filledCell(cell) {
             return cell !== '' && cell != null;
         }
-
+        
         async function loadFileData(filename) {
             if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
                 try {
                     const workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
                     const sheetNames = workbook.SheetNames;
-
+                    
                     const processSheet = async (sheetName) => {
                         const worksheet = workbook.Sheets[sheetName];
                         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
                         const filteredData = jsonData.filter(row => row.some(filledCell));
-
+                        
                         const headerRowIndex = filteredData.findIndex((row, index) =>
                             row.filter(filledCell).length >= (filteredData[index + 1]?.filter(filledCell).length || 0)
                         ) || 0;
-
+                        
                         const csv = XLSX.utils.sheet_to_csv(XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)));
                         return csv;
                     };
-
+                    
                     const csvPromises = sheetNames.map(sheetName => processSheet(sheetName));
                     const csvResults = await Promise.all(csvPromises);
-
+                    
                     return csvResults.length > 0 ? csvResults[0] : "";
                 } catch (e) {
                     console.error('Error processing file:', e);
@@ -241,25 +325,33 @@ background-size: cover;
             }
             return gk_fileData[filename] || "";
         }
-
+        
         const API_URL = "https://chatapi.akash.network/api/v1/chat/completions";
         const MODEL = "DeepSeek-R1";
         const API_KEY = "sk-q47Sw0wxmijNXblCHdy-fw";
-
+        
         const generateBtn = document.getElementById('generateBtn');
         const loadingDiv = document.getElementById('loading');
         const outputDiv = document.getElementById('output');
-
+        
         function addReferenceQuestion() {
             const list = document.getElementById('referenceQuestionsList');
             const currentCount = list.querySelectorAll('.referenceQuestion').length;
             const newQuestion = document.createElement('div');
             newQuestion.className = 'referenceQuestion';
-            newQuestion.innerHTML = `<span class="sequence">${currentCount + 1}.</span><textarea class="refQuestion" placeholder="在此輸入參考題目（支持LaTeX數學符號，例如 \\[ x^2 + 3 \\]）"></textarea>`;
+            newQuestion.innerHTML = `
+                <span class="sequence">${currentCount + 1}.</span>
+                <textarea class="refQuestion" placeholder="在此輸入參考題目（支持LaTeX數學符號，例如 \\[ x^2 + 3 \\]）"></textarea>
+                <select class="difficultySelect">
+                    <option value="容易">容易</option>
+                    <option value="普通" selected>普通</option>
+                    <option value="困難">困難</option>
+                </select>
+            `;
             list.appendChild(newQuestion);
             updateControlButtons();
         }
-
+        
         function removeReferenceQuestion() {
             const list = document.getElementById('referenceQuestionsList');
             const currentCount = list.querySelectorAll('.referenceQuestion').length;
@@ -268,14 +360,14 @@ background-size: cover;
                 updateControlButtons();
             }
         }
-
+        
         function clearReferenceQuestions() {
             const textareas = document.querySelectorAll('.refQuestion');
             textareas.forEach(textarea => {
                 textarea.value = '';
             });
         }
-
+        
         function updateControlButtons() {
             const list = document.getElementById('referenceQuestionsList');
             const currentCount = list.querySelectorAll('.referenceQuestion').length;
@@ -284,47 +376,79 @@ background-size: cover;
             addBtn.disabled = false;
             removeBtn.disabled = currentCount <= 1;
         }
-
+        
         updateControlButtons();
-
+        
         generateBtn.addEventListener('click', generateQuestions);
-
+        
         async function generateQuestions() {
-            const refQuestionElements = document.querySelectorAll('.refQuestion');
-            const refQuestions = Array.from(refQuestionElements).map(el => el.value.trim()).filter(val => val);
-
-            if (refQuestions.length === 0) {
+            const referenceQuestionDivs = document.querySelectorAll('.referenceQuestion');
+            const refQuestionsWithDifficulty = Array.from(referenceQuestionDivs).map(div => ({
+                question: div.querySelector('.refQuestion').value.trim(),
+                difficulty: div.querySelector('.difficultySelect').value
+            })).filter(item => item.question);
+            
+            if (refQuestionsWithDifficulty.length === 0) {
                 alert('請至少輸入一個參考題目');
                 return;
             }
-
+            
             loadingDiv.style.display = 'block';
             generateBtn.disabled = true;
             outputDiv.innerHTML = '';
             document.getElementById('copyBtn').style.display = 'none';
-
+            
+            const promptContent = refQuestionsWithDifficulty.map((item, index) => {
+                let difficultyInstruction;
+                switch (item.difficulty) {
+                    case '容易':
+                        difficultyInstruction = "Generate a new question that only changes the numerical values but keeps the same mathematical concept.";
+                        break;
+                    case '普通':
+                        difficultyInstruction = "generate a new question, its answer, and a guiding question. The new question must: be based on the same mathematical concept; have content, context, and structure 100% different from the reference question, not just changing numbers, showing creativity by altering the question structure or application scenario. Format each set as specified in the system instructions.";
+                        break;
+                    case '困難':
+                        difficultyInstruction = "Generate a new question that is based on the same mathematical concept but is more challenging, focusing on argumentation rather than calculation. The question should require students to evaluate a claim (AGREE or DISAGREE) and provide reasoning.";
+                        break;
+                }
+                return `Reference Question ${index + 1} (Difficulty: ${item.difficulty}):\n${item.question}\n\n${difficultyInstruction}`;
+            }).join('\n\n');
+            
             const requestBody = {
                 model: MODEL,
                 messages: [
                     { 
                         role: "system", 
-                        content: "你是一個數學題目生成器，專門生成DSE課程中的數學題目。用戶會提供一個或多個參考題目，你需要為每個參考題目生成一個新的題目。具體要求如下：\n" +
-                                 "1. 判斷每個參考題目屬於以下範疇：代數、幾何或微積分。\n" +
-                                 "2. 為每個參考題目生成一個新的題目，這個新的題目應：\n" +
-                                 "   - 屬於同一個範疇。\n" +
-                                 "   - 基於相同的數學概念。\n" +
-                                 "   - 內容、情境、題型必須100%與參考題目不同，不能僅改換數值，需展現創意並改變題目結構或應用場景。\n" +
-                                 "3. 所有題目和答案必須使用LaTeX格式，並以 \\[ ... \\] 包裹。\n" +
-                                 "4. 輸出必須僅包含LaTeX格式的題目和答案，絕對不得包含任何非LaTeX內容（如思考過程、結論、步驟或純文字說明）。必須用英文回應。\n" +
-                                 "5. 確保輸出嚴格遵循LaTeX格式，且轉換成功。"
+                        content: "You are a math question generator specializing in DSE curriculum questions. Users will provide one or more reference questions with specified difficulties, and you must generate a new question, its answer with detailed steps, and a guiding question for each based on the given difficulty. Requirements:\n" +
+                            "1. Identify the category of each reference question: algebra, geometry, or calculus.\n" +
+                            "2. Generate a new question for each reference question that:\n" +
+                            "   - Belongs to the same category.\n" +
+                            "   - Is based on the same mathematical concept.\n" +
+                            "   - Adjusts the question type based on the specified difficulty.\n" +
+                            "3. For each new question, also provide:\n" +
+                            "   - The correct answer, including a detailed step-by-step solution. Show the calculation process or reasoning clearly, using multiple lines if necessary.\n" +
+                            "   - A guiding question in English that helps students understand the direction of the problem. The guiding question must include relevant formulas or properties based on the question’s content and provide a step-by-step approach to solving the problem without giving away the answer.\n" +
+                            "4. Format each set (new question, answer with steps, guiding question) as a single LaTeX block using \\begin{align*} with labels 'Question:', 'Answer:', and 'Guiding Question:', enclosed in \\[ ... \\]. The 'Answer:' part may include multiple lines to show the steps or reasoning. For example:\n" +
+                            "\\[\n" +
+                            "\\begin{align*}\n" +
+                            "\\text{Question:} & \\quad \\text{[Your question here]} \\\\\n" +
+                            "\\text{Answer:} & \\quad \\text{[First step or reasoning]} \\\\\n" +
+                            " & \\quad \\text{[Second step or reasoning]} \\\\\n" +
+                            " & \\quad \\vdots \\\\\n" +
+                            " & \\quad \\text{[Final answer or conclusion]} \\\\\n" +
+                            "\\text{Guiding Question:} & \\quad \\text{[Your guiding question here, including relevant formulas or properties and a step-by-step approach]}\n" +
+                            "\\end{align*}\n" +
+                            "\\]\n" +
+                            "5. Ensure the output contains only LaTeX content with no non-LaTeX text outside the \\[ ... \\] blocks. All text, including the guiding question, should be within \\text{} commands inside the LaTeX blocks.\n" +
+                            "6. Respond in English."
                     },
                     { 
                         role: "user", 
-                        content: `以下是用戶提供的參考題目：\n\n${refQuestions.map((q, index) => `參考題目${index + 1}：${q}`).join('\n\n')}\n\n請為每個參考題目生成一個新的題目。新題目應：基於相同數學概念；內容、情境、題型必須100%與參考題目不同，不能僅改換數值，需展現創意並改變題目結構或應用場景。所有題目和答案必須使用LaTeX格式並以 \\[ ... \\] 包裹。輸出必須僅包含LaTeX格式內容，絕對不得包含任何非LaTeX文字，且必須用英文回應。` 
+                        content: `Below are the reference questions with their specified difficulties:\n\n${promptContent}\n\nFor each reference question, generate a new question, its answer with detailed steps, and a guiding question according to the specified difficulty. Format each set as specified in the system instructions.`
                     }
                 ]
             };
-
+            
             try {
                 const response = await fetch(API_URL, {
                     method: 'POST',
@@ -334,52 +458,71 @@ background-size: cover;
                     },
                     body: JSON.stringify(requestBody)
                 });
-
+                
                 if (!response.ok) {
-                    throw new Error(`API請求失敗，狀態碼：${response.status}`);
+                    throw new Error(`API request failed with status: ${response.status}`);
                 }
-
+                
                 const data = await response.json();
                 const generatedContent = data.choices[0].message.content;
-                const latexContent = extractLatexContent(generatedContent);
-                displayMathQuestions(latexContent);
+                const latexBlocks = extractLatexContent(generatedContent);
+                displayMathQuestions(latexBlocks);
             } catch (error) {
-                console.error('錯誤：', error);
+                console.error('Error:', error);
                 outputDiv.textContent = '生成題目時出錯，請稍後再試';
             } finally {
                 loadingDiv.style.display = 'none';
                 generateBtn.disabled = false;
             }
         }
-
+        
         function extractLatexContent(content) {
             const regex = /\\\[.*?\\\]/gs;
             const matches = content.match(regex);
-            return matches ? matches.join('\n\n') : '\\[ \\text{Error: No valid LaTeX content found} \\]';
+            return matches ? matches : ['\\[ \\text{Error: No valid LaTeX content found} \\]'];
         }
-
-        function displayMathQuestions(content) {
-            outputDiv.innerHTML = content;
+        
+        function displayMathQuestions(latexBlocks) {
+            outputDiv.innerHTML = '';
+            latexBlocks.forEach((block, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'math-question';
+                questionDiv.textContent = block;
+                const copyButton = document.createElement('button');
+                copyButton.className = 'copySingleBtn';
+                copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+                copyButton.title = '複製此題目';
+                copyButton.addEventListener('click', function() {
+                    navigator.clipboard.writeText(block).then(() => {
+                        alert('題目已複製到剪貼板');
+                    }).catch(err => {
+                        console.error('複製失敗：', err);
+                        alert('複製失敗，請重試');
+                    });
+                });
+                questionDiv.appendChild(copyButton);
+                outputDiv.appendChild(questionDiv);
+            });
             MathJax.typesetPromise([outputDiv]).catch(err => {
                 console.error('MathJax error:', err);
                 outputDiv.textContent = 'LaTeX轉換失敗，請檢查輸入或稍後再試';
             });
             document.getElementById('copyBtn').style.display = 'block';
         }
-
+        
         document.getElementById('copyBtn').addEventListener('click', function() {
-            const latexContent = outputDiv.textContent;
-            navigator.clipboard.writeText(latexContent).then(() => {
-                alert('LaTeX內容已複製到剪貼板，可粘貼到Word並使用適當工具渲染');
+            const allQuestions = Array.from(document.querySelectorAll('.math-question')).map(div => div.textContent).join('\n\n');
+            navigator.clipboard.writeText(allQuestions).then(() => {
+                alert('所有題目已複製到剪貼板');
             }).catch(err => {
                 console.error('複製失敗：', err);
                 alert('複製失敗，請重試');
             });
         });
     </script>
-
+    
     <footer class="copyright-footer">
-        <p>Copyright © 2025 羅伊汶、陳冠健、黃子謙. All rights reserved.</p>
+        <p>Copyright © 2025 陳冠健、Hugo Wong. All rights reserved.</p>
     </footer>
 </body>
 </html>
