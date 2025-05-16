@@ -1,4 +1,43 @@
-<!DOCTYPE html>
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
@@ -177,13 +216,12 @@
         }
 
         .difficultySelect {
-            width: 100%;
-            padding: 10px;
+            width: 100px;
+            padding: 5px;
             font-size: 16px;
             border: 1px solid #ccc;
             border-radius: 4px;
-            margin-bottom: 15px;
-            box-sizing: border-box;
+            margin-left: 10px;
         }
 
         .math-question {
@@ -195,6 +233,23 @@
             overflow-x: auto;
             white-space: nowrap;
             max-width: 100%;
+            position: relative;
+        }
+
+        .copySingleBtn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: #5d6d7e;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .copySingleBtn:hover {
+            background-color: #4a5a6b;
         }
     </style>
 </head>
@@ -207,6 +262,11 @@
                 <div class="referenceQuestion">
                     <span class="sequence">1.</span>
                     <textarea class="refQuestion" placeholder="在此輸入參考題目（支持LaTeX數學符號，例如 \\[ x^2 + 3 \\]）"></textarea>
+                    <select class="difficultySelect">
+                        <option value="容易">容易</option>
+                        <option value="普通" selected>普通</option>
+                        <option value="困難">困難</option>
+                    </select>
                 </div>
             </div>
             <div class="controlButtons">
@@ -215,18 +275,10 @@
                 <button class="clearReferenceBtn" onclick="clearReferenceQuestions()" title="清空">✖</button>
             </div>
         </div>
-        <div class="inputGroup">
-            <label for="difficulty">難度：</label>
-            <select id="difficulty" class="difficultySelect">
-                <option value="容易">容易</option>
-                <option value="普通" selected>普通</option>
-                <option value="困難">困難</option>
-            </select>
-        </div>
         <button id="generateBtn">生成</button>
         <div id="loading">AI正在思考，請稍候...</div>
         <div id="output"></div>
-        <button id="copyBtn" style="display: none;" title="複製到剪貼板">
+        <button id="copyBtn" style="display: none;" title="複製所有題目">
             <i class="fas fa-copy"></i>
         </button>
     </div>
@@ -278,14 +330,21 @@
         const generateBtn = document.getElementById('generateBtn');
         const loadingDiv = document.getElementById('loading');
         const outputDiv = document.getElementById('output');
-        const difficultySelect = document.getElementById('difficulty');
 
         function addReferenceQuestion() {
             const list = document.getElementById('referenceQuestionsList');
             const currentCount = list.querySelectorAll('.referenceQuestion').length;
             const newQuestion = document.createElement('div');
             newQuestion.className = 'referenceQuestion';
-            newQuestion.innerHTML = `<span class="sequence">${currentCount + 1}.</span><textarea class="refQuestion" placeholder="在此輸入參考題目（支持LaTeX數學符號，例如 \\[ x^2 + 3 \\]）"></textarea>`;
+            newQuestion.innerHTML = `
+                <span class="sequence">${currentCount + 1}.</span>
+                <textarea class="refQuestion" placeholder="在此輸入參考題目（支持LaTeX數學符號，例如 \\[ x^2 + 3 \\]）"></textarea>
+                <select class="difficultySelect">
+                    <option value="容易">容易</option>
+                    <option value="普通" selected>普通</option>
+                    <option value="困難">困難</option>
+                </select>
+            `;
             list.appendChild(newQuestion);
             updateControlButtons();
         }
@@ -320,11 +379,13 @@
         generateBtn.addEventListener('click', generateQuestions);
 
         async function generateQuestions() {
-            const refQuestionElements = document.querySelectorAll('.refQuestion');
-            const refQuestions = Array.from(refQuestionElements).map(el => el.value.trim()).filter(val => val);
-            const difficulty = difficultySelect.value;
+            const referenceQuestionDivs = document.querySelectorAll('.referenceQuestion');
+            const refQuestionsWithDifficulty = Array.from(referenceQuestionDivs).map(div => ({
+                question: div.querySelector('.refQuestion').value.trim(),
+                difficulty: div.querySelector('.difficultySelect').value
+            })).filter(item => item.question);
 
-            if (refQuestions.length === 0) {
+            if (refQuestionsWithDifficulty.length === 0) {
                 alert('請至少輸入一個參考題目');
                 return;
             }
@@ -334,30 +395,33 @@
             outputDiv.innerHTML = '';
             document.getElementById('copyBtn').style.display = 'none';
 
-            let promptContent;
-            switch (difficulty) {
-                case '容易':
-                    promptContent = `Below are the reference questions provided by the user:\n\n${refQuestions.map((q, index) => `Reference Question ${index + 1}: ${q}`).join('\n\n')}\n\nFor each reference question, generate a new question, its answer, and a guiding question. The new question must: only change the numerical values; be based on the same mathematical concept. The guiding question should be in English and help students understand the direction of the problem. Format each set as specified in the system instructions.`;
-                    break;
-                case '普通':
-                    promptContent = `Below are the reference questions provided by the user:\n\n${refQuestions.map((q, index) => `Reference Question ${index + 1}: ${q}`).join('\n\n')}\n\nFor each reference question, generate a new question, its answer, and a guiding question. The new question must: be based on the same mathematical concept; have content, context, and structure 100% different from the reference question, not just changing numbers, showing creativity by altering the question structure or application scenario. The guiding question should be in English and help students understand the direction of the problem. Format each set as specified in the system instructions.`;
-                    break;
-                case '困難':
-                    promptContent = `Below are the reference questions provided by the user:\n\n${refQuestions.map((q, index) => `Reference Question ${index + 1}: ${q}`).join('\n\n')}\n\nFor each reference question, generate a new question, its answer, and a guiding question. The new question must: be based on the same mathematical concept; be completely different and more challenging, focusing on argumentation rather than calculation, requiring students to evaluate a claim (AGREE or DISAGREE) and provide reasoning. The guiding question should be in English and help students understand the direction of the problem. Format each set as specified in the system instructions.`;
-                    break;
-            }
+            const promptContent = refQuestionsWithDifficulty.map((item, index) => {
+                let difficultyInstruction;
+                switch (item.difficulty) {
+                    case '容易':
+                        difficultyInstruction = "Generate a new question that only changes the numerical values but keeps the same mathematical concept.";
+                        break;
+                    case '普通':
+                        difficultyInstruction = "Generate a new question that is based on the same mathematical concept but has completely different content, context, and structure, not just changing numbers. Show creativity by altering the question structure or application scenario.";
+                        break;
+                    case '困難':
+                        difficultyInstruction = "Generate a new question that is based on the same mathematical concept but is more challenging, focusing on argumentation rather than calculation. The question should require students to evaluate a claim (AGREE or DISAGREE) and provide reasoning.";
+                        break;
+                }
+                return `Reference Question ${index + 1} (Difficulty: ${item.difficulty}):\n${item.question}\n\n${difficultyInstruction}`;
+            }).join('\n\n');
 
             const requestBody = {
                 model: MODEL,
                 messages: [
                     { 
                         role: "system", 
-                        content: "You are a math question generator specializing in DSE curriculum questions. Users will provide one or more reference questions, and you must generate a new question, its answer, and a guiding question for each. Requirements:\n" +
+                        content: "You are a math question generator specializing in DSE curriculum questions. Users will provide one or more reference questions with specified difficulties, and you must generate a new question, its answer, and a guiding question for each based on the given difficulty. Requirements:\n" +
                                  "1. Identify the category of each reference question: algebra, geometry, or calculus.\n" +
                                  "2. Generate a new question for each reference question that:\n" +
                                  "   - Belongs to the same category.\n" +
                                  "   - Is based on the same mathematical concept.\n" +
-                                 "   - Adjusts the question type based on the difficulty level specified by the user.\n" +
+                                 "   - Adjusts the question type based on the specified difficulty.\n" +
                                  "3. For each new question, also provide:\n" +
                                  "   - The correct answer.\n" +
                                  "   - A guiding question in English that helps students understand the direction of the problem.\n" +
@@ -374,7 +438,7 @@
                     },
                     { 
                         role: "user", 
-                        content: promptContent
+                        content: `Below are the reference questions with their specified difficulties:\n\n${promptContent}\n\nFor each reference question, generate a new question, its answer, and a guiding question according to the specified difficulty. Format each set as specified in the system instructions.`
                     }
                 ]
             };
@@ -414,10 +478,23 @@
 
         function displayMathQuestions(latexBlocks) {
             outputDiv.innerHTML = '';
-            latexBlocks.forEach(block => {
+            latexBlocks.forEach((block, index) => {
                 const questionDiv = document.createElement('div');
                 questionDiv.className = 'math-question';
                 questionDiv.textContent = block;
+                const copyButton = document.createElement('button');
+                copyButton.className = 'copySingleBtn';
+                copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+                copyButton.title = '複製此題目';
+                copyButton.addEventListener('click', function() {
+                    navigator.clipboard.writeText(block).then(() => {
+                        alert('題目已複製到剪貼板');
+                    }).catch(err => {
+                        console.error('複製失敗：', err);
+                        alert('複製失敗，請重試');
+                    });
+                });
+                questionDiv.appendChild(copyButton);
                 outputDiv.appendChild(questionDiv);
             });
             MathJax.typesetPromise([outputDiv]).catch(err => {
@@ -428,9 +505,9 @@
         }
 
         document.getElementById('copyBtn').addEventListener('click', function() {
-            const latexContent = outputDiv.textContent;
-            navigator.clipboard.writeText(latexContent).then(() => {
-                alert('LaTeX內容已複製到剪貼板，可粘貼到Word並使用適當工具渲染');
+            const allQuestions = Array.from(document.querySelectorAll('.math-question')).map(div => div.textContent).join('\n\n');
+            navigator.clipboard.writeText(allQuestions).then(() => {
+                alert('所有題目已複製到剪貼板');
             }).catch(err => {
                 console.error('複製失敗：', err);
                 alert('複製失敗，請重試');
