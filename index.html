@@ -288,7 +288,7 @@
     
     <script type="text/javascript">
         const API_URL = "https://chatapi.akash.network/api/v1/chat/completions";
-        const MODEL = "DeepSeek-R1";
+        const MODEL = "DeepSeek-R1-0528";
         const API_KEY = "sk-q47Sw0wxmijNXblCHdy-fw";
         
         const generateBtn = document.getElementById('generateBtn');
@@ -410,7 +410,7 @@
                         content: `Below are the reference questions with their specified difficulties:\n\n${promptContent}\n\nFor each reference question, identify its type (multiple-choice, short, or long), generate a new question of the same type, its answer with detailed steps, and a guiding question according to the specified difficulty. Format each set as specified in the system instructions.`
                     }
                ],
-    max_tokens: 8192
+    max_tokens: 64000 
             };
             
             try {
